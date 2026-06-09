@@ -1,15 +1,22 @@
 const express = require("express");
-const cors = require("cors");
-const { v4: uuid } = require("uuid");
-const { createEvents } = require("ics");
+const { randomUUID } = require("crypto");
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
 const calendars = {};
+
+// Serve UI
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/index.html");
+});
+
+/*
+|--------------------------------------------------------------------------
+| CALENDARS
+|--------------------------------------------------------------------------
+*/
 
 app.get("/api/calendars", (req, res) => {
   res.json(Object.values(calendars));
@@ -17,7 +24,7 @@ app.get("/api/calendars", (req, res) => {
 
 app.post("/api/calendars", (req, res) => {
   const calendar = {
-    id: uuid(),
+    id: randomUUID(),
     name: req.body.name,
     events: []
   };
@@ -27,12 +34,29 @@ app.post("/api/calendars", (req, res) => {
   res.json(calendar);
 });
 
+/*
+|--------------------------------------------------------------------------
+| EVENTS
+|--------------------------------------------------------------------------
+*/
+
 app.post("/api/calendars/:id/events", (req, res) => {
   const cal = calendars[req.params.id];
 
+  if (!cal) {
+    return res.status(404).json({
+      error: "calendar not found"
+    });
+  }
+
   const event = {
-    id: uuid(),
-    ...req.body
+    id: randomUUID(),
+    title: req.body.title,
+    description: req.body.description || "",
+    start: req.body.start,
+    end: req.body.end,
+    sequence: 0,
+    updatedAt: new Date().toISOString()
   };
 
   cal.events.push(event);
@@ -47,7 +71,19 @@ app.put("/api/calendars/:id/events/:eventId", (req, res) => {
     e => e.id === req.params.eventId
   );
 
-  Object.assign(event, req.body);
+  if (!event) {
+    return res.status(404).json({
+      error: "event not found"
+    });
+  }
+
+  event.title = req.body.title;
+  event.description = req.body.description;
+  event.start = req.body.start;
+  event.end = req.body.end;
+
+  event.sequence++;
+  event.updatedAt = new Date().toISOString();
 
   res.json(event);
 });
@@ -59,37 +95,67 @@ app.delete("/api/calendars/:id/events/:eventId", (req, res) => {
     e => e.id !== req.params.eventId
   );
 
-  res.json({ success: true });
+  res.json({
+    success: true
+  });
 });
+
+/*
+|--------------------------------------------------------------------------
+| ICS FEED
+|--------------------------------------------------------------------------
+*/
+
+function formatICSDate(dateString) {
+  const d = new Date(dateString);
+
+  return d
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d+/g, "");
+}
 
 app.get("/calendar/:id.ics", (req, res) => {
   const cal = calendars[req.params.id];
 
   if (!cal) {
-    return res.status(404).send();
+    return res.status(404).send("calendar not found");
   }
 
-  const events = cal.events.map(e => ({
-    title: e.title,
-    description: e.description,
-    start: [
-      e.year,
-      e.month,
-      e.day,
-      e.hour,
-      e.minute
-    ],
-    duration: {
-      hours: 1
-    }
-  }));
+  let ics = `
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:${cal.name}
+`;
 
-  createEvents(events, (err, value) => {
-    res.setHeader("Content-Type", "text/calendar");
-    res.send(value);
+  cal.events.forEach(event => {
+    ics += `
+BEGIN:VEVENT
+UID:${event.id}
+SUMMARY:${event.title}
+DESCRIPTION:${event.description}
+DTSTAMP:${formatICSDate(event.updatedAt)}
+LAST-MODIFIED:${formatICSDate(event.updatedAt)}
+SEQUENCE:${event.sequence}
+DTSTART:${formatICSDate(event.start)}
+DTEND:${formatICSDate(event.end)}
+END:VEVENT
+`;
   });
+
+  ics += `
+END:VCALENDAR
+`;
+
+  res.setHeader("Content-Type", "text/calendar");
+  res.send(ics);
 });
 
-app.listen(3000, () => {
-  console.log("running on 3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`running on ${PORT}`);
 });
