@@ -1,72 +1,563 @@
 <!DOCTYPE html>
 <html>
+<head>
+<meta charset="utf-8">
+
+<title>Calendar Test</title>
+
+<style>
+body{
+font-family:Arial;
+max-width:1200px;
+margin:auto;
+padding:20px;
+}
+
+.card{
+border:1px solid #ddd;
+padding:15px;
+margin-bottom:20px;
+}
+
+input{
+padding:8px;
+margin:5px;
+}
+
+button{
+padding:8px 12px;
+margin:5px;
+cursor:pointer;
+}
+
+.event{
+padding:10px;
+border:1px solid #eee;
+margin-top:10px;
+}
+</style>
+</head>
+
 <body>
 
-<h1>Calendar Test</h1>
+<h1>Calendar Subscription Test</h1>
 
-<input id="name" placeholder="calendar name">
+<input id="calendarName"
+placeholder="Calendar Name">
+
 <button onclick="createCalendar()">
 Create Calendar
 </button>
 
-<div id="calendars"></div>
+<hr>
+
+<div id="container"></div>
 
 <script>
 
-async function createCalendar() {
+let calendars=[];
 
-  const name =
-    document.getElementById("name").value;
+async function loadCalendars(){
 
-  const res = await fetch(
-    "/api/calendars",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":"application/json"
-      },
-      body: JSON.stringify({ name })
-    }
-  );
+const res=await fetch("/api/calendars");
 
-  load();
+calendars=await res.json();
+
+render();
 }
 
-async function load() {
+async function createCalendar(){
 
-  const calendars =
-    await fetch("/api/calendars")
-      .then(r=>r.json());
+const name=document
+.getElementById("calendarName")
+.value;
 
-  document.getElementById("calendars")
-    .innerHTML = calendars.map(c=>`
+if(!name) return;
 
-      <div style="border:1px solid black;padding:10px;margin:10px">
+await fetch("/api/calendars",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({name})
+});
 
-        <h3>${c.name}</h3>
+document
+.getElementById("calendarName")
+.value="";
 
-        <button onclick="subscribe('${c.id}')">
-          Subscribe
-        </button>
-
-      </div>
-
-    `).join("");
+loadCalendars();
 }
 
-function subscribe(id){
+function render(){
 
-  const host =
-    location.origin.replace(
-      "http://",
-      "webcal://"
-    );
+const container=
+document.getElementById("container");
 
-  window.location.href =
-    `${host}/calendar/${id}.ics`;
+container.innerHTML="";
+
+calendars.forEach(cal=>{
+
+const subUrl=
+`${location.origin}/calendar/${cal.id}.ics`;
+
+container.innerHTML+=`
+
+<div class="card">
+
+<h2>${cal.name}</h2>
+
+<p>
+Subscription URL:
+</p>
+
+<input
+style="width:500px"
+value="${subUrl}"
+readonly>
+
+<br>
+
+<button onclick="copyUrl('${subUrl}')">
+Copy URL
+</button>
+
+<button onclick="openWebcal('${subUrl}')">
+Try Outlook Subscribe
+</button>
+
+<hr>
+
+<h3>Add Event</h3>
+
+<input
+id="title-${cal.id}"
+placeholder="Title">
+
+<input
+id="start-${cal.id}"
+type="datetime-local">
+
+<input
+id="end-${cal.id}"
+type="datetime-local">
+
+<br>
+
+<input
+id="desc-${cal.id}"
+placeholder="Description"
+style="width:400px">
+
+<br>
+
+<button
+onclick="addEvent('${cal.id}')">
+Add Event
+</button>
+
+<hr>
+
+<h3>Events</h3>
+
+${cal.events.map(event=>`
+
+<div class="event">
+
+<b>${event.title}</b>
+
+<br>
+
+${event.start}
+
+<br>
+
+${event.end}
+
+<br>
+
+${event.description}
+
+<br><br>
+
+<button
+onclick="deleteEvent(
+'${cal.id}',
+'${event.id}'
+)">
+Delete
+</button>
+
+</div>
+
+`).join("")}
+
+</div>
+`;
+});
 }
 
-load();
+async function addEvent(calendarId){
+
+const title=
+document.getElementById(
+`title-${calendarId}`
+).value;
+
+const start=
+document.getElementById(
+`start-${calendarId}`
+).value;
+
+const end=
+document.getElementById(
+`end-${calendarId}`
+).value;
+
+const description=
+document.getElementById(
+`desc-${calendarId}`
+).value;
+
+if(!title || !start || !end){
+alert("fill all fields");
+return;
+}
+
+await fetch(
+`/api/calendars/${calendarId}/events`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+title,
+description,
+start,
+end
+})
+}
+);
+
+loadCalendars();
+}
+
+async function deleteEvent(
+calendarId,
+eventId
+){
+
+await fetch(
+`/api/calendars/${calendarId}/events/${eventId}`,
+{
+method:"DELETE"
+}
+);
+
+loadCalendars();
+}
+
+function copyUrl(url){
+
+navigator.clipboard.writeText(url);
+
+alert("copied");
+}
+
+function openWebcal(url){
+
+const webcal=url.replace(
+"https://",
+"webcal://"
+);
+
+window.location.href=webcal;
+}
+
+loadCalendars();
+
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>Calendar Test</title>
+
+<style>
+body{
+font-family:Arial;
+max-width:1200px;
+margin:auto;
+padding:20px;
+}
+
+.card{
+border:1px solid #ddd;
+padding:15px;
+margin-bottom:20px;
+}
+
+input{
+padding:8px;
+margin:5px;
+}
+
+button{
+padding:8px 12px;
+margin:5px;
+cursor:pointer;
+}
+
+.event{
+padding:10px;
+border:1px solid #eee;
+margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Calendar Subscription Test</h1>
+
+<input id="calendarName"
+placeholder="Calendar Name">
+
+<button onclick="createCalendar()">
+Create Calendar
+</button>
+
+<hr>
+
+<div id="container"></div>
+
+<script>
+
+let calendars=[];
+
+async function loadCalendars(){
+
+const res=await fetch("/api/calendars");
+
+calendars=await res.json();
+
+render();
+}
+
+async function createCalendar(){
+
+const name=document
+.getElementById("calendarName")
+.value;
+
+if(!name) return;
+
+await fetch("/api/calendars",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({name})
+});
+
+document
+.getElementById("calendarName")
+.value="";
+
+loadCalendars();
+}
+
+function render(){
+
+const container=
+document.getElementById("container");
+
+container.innerHTML="";
+
+calendars.forEach(cal=>{
+
+const subUrl=
+`${location.origin}/calendar/${cal.id}.ics`;
+
+container.innerHTML+=`
+
+<div class="card">
+
+<h2>${cal.name}</h2>
+
+<p>
+Subscription URL:
+</p>
+
+<input
+style="width:500px"
+value="${subUrl}"
+readonly>
+
+<br>
+
+<button onclick="copyUrl('${subUrl}')">
+Copy URL
+</button>
+
+<button onclick="openWebcal('${subUrl}')">
+Try Outlook Subscribe
+</button>
+
+<hr>
+
+<h3>Add Event</h3>
+
+<input
+id="title-${cal.id}"
+placeholder="Title">
+
+<input
+id="start-${cal.id}"
+type="datetime-local">
+
+<input
+id="end-${cal.id}"
+type="datetime-local">
+
+<br>
+
+<input
+id="desc-${cal.id}"
+placeholder="Description"
+style="width:400px">
+
+<br>
+
+<button
+onclick="addEvent('${cal.id}')">
+Add Event
+</button>
+
+<hr>
+
+<h3>Events</h3>
+
+${cal.events.map(event=>`
+
+<div class="event">
+
+<b>${event.title}</b>
+
+<br>
+
+${event.start}
+
+<br>
+
+${event.end}
+
+<br>
+
+${event.description}
+
+<br><br>
+
+<button
+onclick="deleteEvent(
+'${cal.id}',
+'${event.id}'
+)">
+Delete
+</button>
+
+</div>
+
+`).join("")}
+
+</div>
+`;
+});
+}
+
+async function addEvent(calendarId){
+
+const title=
+document.getElementById(
+`title-${calendarId}`
+).value;
+
+const start=
+document.getElementById(
+`start-${calendarId}`
+).value;
+
+const end=
+document.getElementById(
+`end-${calendarId}`
+).value;
+
+const description=
+document.getElementById(
+`desc-${calendarId}`
+).value;
+
+if(!title || !start || !end){
+alert("fill all fields");
+return;
+}
+
+await fetch(
+`/api/calendars/${calendarId}/events`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+title,
+description,
+start,
+end
+})
+}
+);
+
+loadCalendars();
+}
+
+async function deleteEvent(
+calendarId,
+eventId
+){
+
+await fetch(
+`/api/calendars/${calendarId}/events/${eventId}`,
+{
+method:"DELETE"
+}
+);
+
+loadCalendars();
+}
+
+function copyUrl(url){
+
+navigator.clipboard.writeText(url);
+
+alert("copied");
+}
+
+function openWebcal(url){
+
+const webcal=url.replace(
+"https://",
+"webcal://"
+);
+
+window.location.href=webcal;
+}
+
+loadCalendars();
 
 </script>
 
