@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Calendar Test</h1>
+
+<input id="name" placeholder="calendar name">
+<button onclick="createCalendar()">
+Create Calendar
+</button>
+
+<div id="calendars"></div>
+
+<script>
+
+async function createCalendar() {
+
+  const name =
+    document.getElementById("name").value;
+
+  const res = await fetch(
+    "/api/calendars",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":"application/json"
+      },
+      body: JSON.stringify({ name })
+    }
+  );
+
+  load();
+}
+
+async function load() {
+
+  const calendars =
+    await fetch("/api/calendars")
+      .then(r=>r.json());
+
+  document.getElementById("calendars")
+    .innerHTML = calendars.map(c=>`
+
+      <div style="border:1px solid black;padding:10px;margin:10px">
+
+        <h3>${c.name}</h3>
+
+        <button onclick="subscribe('${c.id}')">
+          Subscribe
+        </button>
+
+      </div>
+
+    `).join("");
+}
+
+function subscribe(id){
+
+  const host =
+    location.origin.replace(
+      "http://",
+      "webcal://"
+    );
+
+  window.location.href =
+    `${host}/calendar/${id}.ics`;
+}
+
+load();
+
+</script>
+
+</body>
+</html>
